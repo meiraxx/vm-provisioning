@@ -1,0 +1,35 @@
+---
+# file: vmcloud-site-net-instances-01.yml
+# creates a demo tenant infrastructure (networks, host instances)
+# This is a single Play named "Create Tenant Infrastructure"
+# Please note that in tasks there were included "debug" options
+# to report the results of the tasks
+#
+# This is the firts step - create just the frontend and backend networks
+# You can modify the subnet addressing...
+
+- name: Create Tenant Infrastructure
+  hosts: localhost
+
+  tasks:
+
+
+  # creating the backend network (for web servers)
+  - os_network:
+      name: backend_network
+    register: net_backend
+  - debug:
+      var: net_backend
+  # defines the subnet (addressing) for the backend network including DNS
+  - os_subnet:
+      state: present
+      network_name: backend_network
+      name: backend_subnet
+      cidr: 192.168.1.0/24
+      enable_dhcp: True
+      dns_nameservers:
+        - 8.8.8.8
+        - 8.8.4.4
+    register: subnet_backend
+  - debug:
+      var: subnet_backend

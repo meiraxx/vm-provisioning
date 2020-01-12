@@ -1,0 +1,54 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+Vagrant.configure("2") do |config|
+
+	config.ssh.insert_key = false
+	config.vbguest.auto_update = true
+
+  # create Management (mgmt) node
+	config.vm.define :mgmt do |mgmt_config|
+      mgmt_config.vm.box = "ubuntu/trusty64"
+      mgmt_config.vm.hostname = "mgmt"
+      mgmt_config.vm.network :private_network, ip: "192.168.56.10"
+      mgmt_config.vm.provider "virtualbox" do |vb|
+      	vb.name = "mgmt"
+      	opts = ["modifyvm", :id, "--natdnshostresolver1", "on"]
+      	vb.customize opts
+      	vb.memory = "512"
+      end
+      mgmt_config.vm.provision :shell, path: "bootstrap-mgmt.sh"
+	end
+
+  # create Load Balancer (lbal) node
+	config.vm.define :lbal do |lbal_config|
+      lbal_config.vm.box = "ubuntu/trusty64"
+      lbal_config.vm.hostname = "lbal"
+      lbal_config.vm.network :private_network, ip: "192.168.56.11"
+      lbal_config.vm.network "forwarded_port", guest: 80, host: 8080
+      lbal_config.vm.provider "virtualbox" do |vb|
+        vb.name = "lbal"
+      	opts = ["modifyvm", :id, "--natdnshostresolver1", "on"]
+      	vb.customize opts
+        vb.memory = "256"
+      end
+	end
+
+  # create some web servers
+  # https://docs.vagrantup.com/v2/vagrantfile/tips.html
+  (1..6).each do |i|
+    config.vm.define "web#{i}" do |node|
+        node.vm.box = "ubuntu/trusty64"
+        node.vm.hostname = "web#{i}"
+        node.vm.network :private_network, ip: "192.168.56.2#{i}"
+        node.vm.network "forwarded_port", guest: 80, host: "808#{i}"
+        node.vm.provider "virtualbox" do |vb|
+        	vb.name = "web#{i}"
+      		opts = ["modifyvm", :id, "--natdnshostresolver1", "on"]
+      		vb.customize opts
+      		vb.memory = "256"
+        end
+    end
+  end
+
+end

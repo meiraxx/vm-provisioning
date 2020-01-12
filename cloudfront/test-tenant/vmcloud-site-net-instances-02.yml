@@ -1,0 +1,58 @@
+---
+# file: vmcloud-site-net-instances-02.yml
+# creates a demo tenant infrastructure (networks, host instances)
+# This is a single Play named "Create Tenant Infrastructure"
+# Please note that in tasks there were included "debug" options
+# to report the results of the tasks
+#
+# This is the Fourth step - create server instances and add them to inventory
+
+- name: Create Tenant Infrastructure
+  hosts: localhost
+
+  tasks:
+
+  # creating the backend network (for web servers)
+  - os_network:
+      name: backend_network
+    register: net_backend
+  - debug:
+      var: net_backend
+  # defines the subnet (addressing) for the backend network including DNS
+  - os_subnet:
+      state: present
+      network_name: backend_network
+      name: backend_subnet
+      cidr: 192.168.1.0/24
+      enable_dhcp: True
+      dns_nameservers:
+        - 8.8.8.8
+        - 8.8.4.4
+    register: subnet_backend
+  - debug:
+      var: subnet_backend
+
+
+  # creating a key pair for passwordless remote ssh
+  - os_keypair:
+      state: present
+      name: ansible-key
+      public_key_file: /home/vagrant/.ssh/id_rsa.pub
+    register: kp
+  - debug:
+      var: kp
+
+  #  creating security group to allow access to frontend servers
+  - name: Create a new security group
+    os_security_group:
+      state: present
+      name: sec_ingr
+  #  creating security group Rule for ICMP
+  #  creating security group Rule for secure HTTP port 443
+  - name: Create a new security rule allowing secure web connection
+    os_security_group_rule:
+      security_group: sec_ingr
+      protocol: tcp
+      port_range_min: 443
+      port_range_max: 443
+      remote_ip_prefix: 0.0.0.0/0

@@ -1,0 +1,17 @@
+---
+# file: vmcloud-site-clear-key.yml
+# configures the server instances
+# This Playbook has Two Plays: one for critical configurations in all servers
+# A second one for installing software in web servers
+# and in the Bastion/load Balancer server
+#
+
+# Eliminates a key pair with the running users public key
+- name: eliminate key
+  hosts: all
+  tasks:
+    - os_keypair:
+        cloud: vmcloud
+        state: absent
+        name: ansible-key
+        public_key_file: /home/vagrant/.ssh/id_rsa.pub

@@ -1,0 +1,93 @@
+---
+# file: vmcloud-site-servers-setup-02.yml
+# configures the server instances
+# This Playbook has Two Plays: one for critical configurations in all servers
+# A second one for installing software in web servers
+# and in the Bastion/load Balancer server
+#
+# This Playbook corresponds to the Second Play
+
+# This Play installs the required software in web servers
+# tasks names are self explanatory
+- hosts: web
+  gather_facts: True
+  remote_user: ubuntu
+  become: yes
+  become_method: sudo
+  tasks:
+    - name: install apps
+      apt: name={{ item }} update_cache=yes state=latest
+      with_items:
+        - nginx
+      register: conf
+    - debug:
+        var: conf
+
+    - name: write nginx.conf
+      template: src=/home/vagrant/test-tenant/templates/nginx.conf.j2 dest=/etc/nginx/nginx.conf
+      notify: restart nginx
+
+    - name: write /etc/nginx/sites-available/default
+      template: src=/home/vagrant/test-tenant/templates/default-site.j2 dest=/etc/nginx/sites-available/default
+      notify: restart nginx
+
+    - name: deploy website content
+      template: src=/home/vagrant/test-tenant/templates/index.html.j2 dest=/usr/share/nginx/html/index.html
+
+  # The handler is common to the nginx installation steps
+  handlers:
+    - name: restart nginx
+      service: name=nginx state=restarted
+
+# This Play install the required software in the Bastion/Load Balancer
+- hosts: bastionbal
+  gather_facts: True
+  remote_user: ubuntu
+  become: yes
+  become_method: sudo
+  tasks:
+    # as there is no internal DNS service, we need to populate theb /etc/hosts
+    - name: update /etc/hosts file for name resolution of self
+      lineinfile: dest=/etc/hosts regexp='.*{{ item }}$' line="127.0.0.1 {{item}}" state=present
+      with_items: bastionbal
+    # as there is no internal DNS service, we need to populate theb /etc/hosts
+    - name: update /etc/hosts file for name resolution
+      lineinfile: dest=/etc/hosts regexp='.*{{ item }}$' line="{{ hostvars[item]['ansible_default_ipv4']['address'] }} {{item}}" state=present
+      when: hostvars[item]['ansible_default_ipv4']['address'] is defined
+      with_items: '{{groups.web}}'
+
+    - name: install haproxy and socat
+      apt: pkg={{ item }} state=latest
+      with_items:
+      - haproxy
+      - socat
+
+    - name: enable haproxy
+      lineinfile: dest=/etc/default/haproxy regexp="^ENABLED" line="ENABLED=1"
+      notify: restart haproxy
+
+    - name: deploy haproxy config
+      template: src=/home/vagrant/test-tenant/templates/haproxy.cfg.j2 dest=/etc/haproxy/haproxy.cfg
+      notify: restart haproxy
+
+    # This task may be required for some updates due to packages installed
+    - name: reboot machine
+      shell: sleep 2 && shutdown -r now "Ansible reboot"
+      async: 1
+      poll: 0
+      ignore_errors: true
+    # Wait for the server to come alive again
+    - name: wait for server to come back
+      local_action: wait_for
+      args:
+        host: "{{ ansible_host }}"
+        port: 22
+        state: started
+        delay: 30
+        timeout: 300
+
+# The handler is common to the haproxy installation steps
+  handlers:
+
+  - name: restart haproxy
+    service: name=haproxy state=restarted

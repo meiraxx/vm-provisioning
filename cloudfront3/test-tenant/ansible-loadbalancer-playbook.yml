@@ -1,0 +1,44 @@
+#Before using facts you will need to take them from hosts.
+- hosts: all
+  tasks: []
+
+- hosts: lbals
+  gather_facts: True
+  become: yes
+  become_method: sudo
+  tasks:
+    - name: install haproxy and socat
+      apt: pkg={{ item }} state=latest
+      with_items:
+      - haproxy
+      - socat
+
+    - name: enable haproxy
+      lineinfile: dest=/etc/default/haproxy regexp="^ENABLED" line="ENABLED=1"
+      notify: restart haproxy
+
+    - name: deploy haproxy config
+      template: src=./templates/haproxy.cfg.j2 dest=/etc/haproxy/haproxy.cfg
+      notify: restart haproxy
+
+    # This task may be required for some updates due to packages installed
+    - name: reboot machine
+      shell: sleep 2 && shutdown -r now "Ansible reboot"
+      async: 1
+      poll: 0
+      ignore_errors: true
+    # Wait for the server to come alive again
+    - name: wait for server to come back
+      local_action: wait_for
+      args:
+        host: "{{ ansible_host }}"
+        port: 22
+        state: started
+        delay: 30
+        timeout: 300
+
+# The handler is common to the haproxy installation steps
+  handlers:
+
+  - name: restart haproxy
+    service: name=haproxy state=restarted

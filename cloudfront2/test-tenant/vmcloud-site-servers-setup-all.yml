@@ -1,0 +1,119 @@
+---
+# file: vmcloud-site-servers-setup-all.yml
+# configures the server instances
+# This Playbook has Three Plays: one for critical configurations in all servers
+# A second one for installing software in web servers
+# a third one to install software in the bastion/load Balancer server
+
+# This First Play Sets up critical configuration on servers
+- hosts: targets
+  # as the systems are not yet "known" by Ansible Facts cannot be gathered yet
+  gather_facts: False
+  remote_user: ubuntu
+  become: yes
+  become_method: sudo
+  pre_tasks:
+    # A mininal Python is required in instances managed by Ansible
+    - name: Install python for Ansible
+      raw: test -e /usr/bin/python || (apt-get -y update && apt-get install -y python-simplejson)
+      changed_when: False
+    # To operate remotely in critical files without direct user input
+    - name: Remove require tty
+      lineinfile: regexp="^\s+\w+\s+requiretty" dest=/etc/sudoers state=absent
+    # To operate remotely in critical files without direct user input
+    - name: Remove require tty - alt
+      lineinfile: regexp="requiretty" dest=/etc/sudoers.d/os_defaults state=absent
+    # Giving permissions in sudoers for system critical files
+    - name: Validate the sudoers file before saving  not to require password
+      lineinfile: "dest=/etc/sudoers state=present regexp='^%ADMIN ALL=' line='%ADMIN ALL=(ALL) NOPASSWD: ALL' validate='visudo -cf %s'"
+
+
+# This Second Play install the required software in web servers
+# tasks names are self explanatory
+- hosts: web
+  gather_facts: True
+  remote_user: ubuntu
+  become: yes
+  become_method: sudo
+  tasks:
+    - name: install apps
+      apt:
+        name:
+          - nginx
+        update_cache: yes
+        state: latest
+      register: conf
+    # - debug:
+    #     var: conf
+
+    - name: write nginx.conf
+      template: src=~/test-tenant/templates/nginx.conf.j2 dest=/etc/nginx/nginx.conf
+      notify: restart nginx
+
+    - name: write /etc/nginx/sites-available/default
+      template: src=~/test-tenant/templates/default-site.j2 dest=/etc/nginx/sites-available/default
+      notify: restart nginx
+
+    - name: deploy website content
+      template: src=~/test-tenant/templates/index.html.j2 dest=/usr/share/nginx/html/index.html
+
+  # The handler is common to the nginx installation steps
+  handlers:
+    - name: restart nginx
+      service: name=nginx state=restarted
+
+# This Third Play install the required software in the Bastion/Load Balancer
+# It also reboots the server and waits for it to come up
+- hosts: bastionbal
+  gather_facts: True
+  remote_user: ubuntu
+  become: yes
+  become_method: sudo
+  tasks:
+    # as there is no internal DNS service, we need to populate theb /etc/hosts
+    - name: update /etc/hosts file for name resolution of self
+      lineinfile: dest=/etc/hosts regexp='.*{{ item }}$' line="127.0.0.1 {{item}}" state=present
+      with_items: bastionbal
+    # as there is no internal DNS service, we need to populate theb /etc/hosts
+    - name: update /etc/hosts file for name resolution
+      lineinfile: dest=/etc/hosts regexp='.*{{ item }}$' line="{{ hostvars[item]['ansible_default_ipv4']['address'] }} {{item}}" state=present
+      when: hostvars[item]['ansible_default_ipv4']['address'] is defined
+      with_items: '{{groups.web}}'
+
+    - name: install haproxy and socat
+      apt:
+        name:
+          - haproxy
+          - socat
+        update_cache: yes
+        state: latest
+
+    - name: enable haproxy
+      lineinfile: dest=/etc/default/haproxy regexp="^ENABLED" line="ENABLED=1"
+      notify: restart haproxy
+
+    - name: deploy haproxy config
+      template: src=~/test-tenant/templates/haproxy.cfg.j2 dest=/etc/haproxy/haproxy.cfg
+      notify: restart haproxy
+
+    # This task may be required for some updates due to packages installed
+    - name: reboot machine
+      shell: sleep 2 && shutdown -r now "Ansible reboot"
+      async: 1
+      poll: 0
+      ignore_errors: true
+    # Wait for the server to come alive again
+    - name: wait for server to come back
+      local_action: wait_for
+      args:
+        host: "{{ ansible_host }}"
+        port: 22
+        state: started
+        delay: 30
+        timeout: 300
+
+# The handler is common to the nginx installation steps
+  handlers:
+
+  - name: restart haproxy
+    service: name=haproxy state=restarted

@@ -1,0 +1,11 @@
+export OS_AUTH_URL=https://stackcontroller.tp.dsi.tecnico.ulisboa.pt:5000/v3
+export OS_IDENTITY_API_VERSION=3
+export OS_IMAGE_API_VERSION=2
+export OS_PROJECT_DOMAIN_NAME=tecnico-saml
+export OS_USER_DOMAIN_NAME=tecnico-apikeys
+export OS_REGION_NAME=RegionA
+export OS_PROJECT_NAME=gp-AGISIT-AGISIT-Teams-7
+export OS_PROJECT_ID=428aa0b348ef451988082297ff9214ab
+export OS_USERNAME=RZZXvtWiQQnxoM4ZBAGXLIvNzw6PCVIrSU8uBat0
+export OS_PASSWORD=benafKY5EoB99YPip11NODCIR4mK6RbAkPG4zq1g
+

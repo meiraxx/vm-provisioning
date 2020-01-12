@@ -1,0 +1,104 @@
+---
+# file: vmcloud-site-net-instances-clean.yml
+# creates a demo tenant infrastructure (networks, host instances)
+# This is a single Play named "Create Tenant Infrastructure"
+# Please note that in tasks there were included "debug" options
+# to report the results of the tasks
+#
+# This is the Fourth step - create server instances and add them to inventory
+
+- name: Eliminate Tenant Infrastructure
+  hosts: localhost
+  tasks:
+
+  #  create an instance (a server) connected to the pre-defined frontend network of the project.
+  - os_server:
+      state: absent
+      name: bastionbal
+      image: Ubuntu-18.04-Latest
+      key_name: ansible-key
+      timeout: 200
+      flavor: t1.nano
+      security_groups: "default,sec_ingr"
+      nics:
+        - net-name: n-AGISIT-AGISIT-Teams-XXXX
+      auto_ip: no
+    register: bastionbal
+
+
+
+  #  create an instance (a web server) connected to the backend network.
+  - os_server:
+      state: absent
+      name: web1
+      image: Ubuntu-18.04-Latest
+      key_name: ansible-key
+      timeout: 200
+      flavor: t1.nano
+      security_groups: "default,sec_ingr"
+      nics:
+        - net-name: n-AGISIT-AGISIT-Teams-XXXX
+        - net-name: backend_network
+      auto_ip: no
+    register: web1
+
+
+  #  create another instance (a web server) connected to the backend network.
+  - os_server:
+      state: absent
+      name: web2
+      image: Ubuntu-18.04-Latest
+      key_name: ansible-key
+      timeout: 200
+      flavor: t1.nano
+      security_groups: "default,sec_ingr"
+      nics:
+        - net-name: n-AGISIT-AGISIT-Teams-XXXX
+        - net-name: backend_network
+      auto_ip: no
+    register: web2
+
+
+  #  create an instance (a db server) connected to the backend network.
+  - os_server:
+      state: absent
+      name: dbase
+      image: Ubuntu-18.04-Latest
+      key_name: ansible-key
+      timeout: 200
+      flavor: t1.nano
+      security_groups: "default,sec_ingr"
+      nics:
+        - net-name: backend_network
+      auto_ip: no
+    register: dbase
+
+  # creating a key pair for passwordless remote ssh
+  - os_keypair:
+      state: absent
+      name: ansible-key
+      public_key_file: /home/vagrant/.ssh/id_rsa.pub
+    register: kp
+
+  #  creating security group to allow access to frontend servers
+  - name: Eliminate a new security group
+    os_security_group:
+      state: absent
+      name: sec_ingr
+
+  # creating the backend network (for web servers)
+  - os_network:
+      name: backend_network
+    register: net_backend
+
+  # defines the subnet (addressing) for the backend network including DNS
+  - os_subnet:
+      state: absent
+      network_name: backend_network
+      name: backend_subnet
+      cidr: 192.168.1.0/24
+      enable_dhcp: True
+      dns_nameservers:
+        - 8.8.8.8
+        - 8.8.4.4
+    register: subnet_backend

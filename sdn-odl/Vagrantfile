@@ -1,0 +1,56 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+
+Vagrant.configure("2") do |config|
+
+  config.ssh.insert_key = false
+  config.ssh.forward_x11 = true
+  config.vbguest.auto_update = true
+
+  config.vm.define "odl" do |odl|
+    odl.vm.box = "ubuntu/trusty64"
+    odl.vm.hostname = "odl"
+    odl.vm.network :private_network, ip: "10.10.10.2"
+    odl.vm.synced_folder "mydata", "/home/vagrant/mydata"
+    #odl.vm.network "forwarded_port", guest: 8181, host: 58181
+    odl.vm.provider "virtualbox" do |vb|
+      vb.name = "odl"
+      opts = ["modifyvm", :id, "--natdnshostresolver1", "on"]
+      vb.customize opts
+      vb.memory = "2048"
+      vb.cpus = 1
+    end
+    odl.vm.provision :shell, path: "odl-provision.sh"
+  end
+
+  config.vm.define "mininet" do |mininet|
+    mininet.vm.box = "ubuntu/trusty64"
+    mininet.vm.hostname = "mininet"
+    mininet.vm.network :private_network, ip: "10.10.10.3"
+    mininet.vm.synced_folder "mydata", "/home/vagrant/mydata"
+    mininet.vm.provider "virtualbox" do |vb|
+      vb.name = "mininet"
+      opts = ["modifyvm", :id, "--natdnshostresolver1", "on"]
+      vb.customize opts
+      vb.memory = "512"
+      vb.cpus = 1
+    end
+    mininet.vm.provision :shell, path: "mininet-provision.sh"
+  end
+
+  config.vm.define "ofm" do |ofm|
+    ofm.vm.box = "ubuntu/trusty64"
+    ofm.vm.hostname = "ofm"
+    ofm.vm.network :private_network, ip: "10.10.10.4"
+    #ofm.vm.network "forwarded_port", guest: 9000, host: 19000
+    ofm.vm.provider "virtualbox" do |vb|
+      vb.name = "ofm"
+      opts = ["modifyvm", :id, "--natdnshostresolver1", "on"]
+      vb.customize opts
+      vb.memory = "512"
+      vb.cpus = 1
+    end
+    ofm.vm.provision :shell, path: "ofm-provision.sh"
+  end
+end

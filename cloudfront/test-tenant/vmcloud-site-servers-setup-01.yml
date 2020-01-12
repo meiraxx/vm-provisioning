@@ -1,0 +1,31 @@
+---
+# file: vmcloud-site-servers-setup-01.yml
+# configures the server instances
+# This Playbook has Two Plays: one for critical configurations in all servers
+# A second one for installing software in web servers
+# and in the Bastion/load Balancer server
+#
+# This Playbook corresponds to the First Play
+
+
+# This First Play Sets up critical configuration on servers
+- hosts: targets
+  # as the systems are not yet "known" by Ansible Facts cannot be gathered yet
+  gather_facts: False
+  remote_user: ubuntu
+  become: yes
+  become_method: sudo
+  pre_tasks:
+    # A mininal Python is required in instances managed by Ansible
+    - name: Install python for Ansible
+      raw: test -e /usr/bin/python || (apt-get -y update && apt-get install -y python-simplejson)
+      changed_when: False
+    # To operate remotely in critical files without direct user input
+    - name: Remove require tty
+      lineinfile: regexp="^\s+\w+\s+requiretty" dest=/etc/sudoers state=absent
+    # To operate remotely in critical files without direct user input
+    - name: Remove require tty - alt
+      lineinfile: regexp="requiretty" dest=/etc/sudoers.d/os_defaults state=absent
+    # Giving permissions in sudoers for system critical files
+    - name: Validate the sudoers file before saving  not to require password
+      lineinfile: "dest=/etc/sudoers state=present regexp='^%ADMIN ALL=' line='%ADMIN ALL=(ALL) NOPASSWD: ALL' validate='visudo -cf %s'"

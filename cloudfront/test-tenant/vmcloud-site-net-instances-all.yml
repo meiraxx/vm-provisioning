@@ -1,0 +1,198 @@
+---
+# file: vmcloud-site-net-instances-all.yml
+# creates a demo tenant infrastructure (networks, host instances)
+# This is a single Play named "Create Tenant Infrastructure"
+# Please note that in tasks there were included "debug" options
+# to report the results of the tasks
+#
+# This is the Fourth step - create server instances and add them to inventory
+
+- name: Create Tenant Infrastructure
+  hosts: localhost
+
+  tasks:
+
+  # creating the backend network (for web servers)
+  - os_network:
+      name: backend_network
+    register: net_backend
+
+  # defines the subnet (addressing) for the backend network including DNS
+  - os_subnet:
+      state: present
+      network_name: backend_network
+      name: backend_subnet
+      cidr: 192.168.1.0/24
+      enable_dhcp: True
+      dns_nameservers:
+        - 8.8.8.8
+        - 8.8.4.4
+    register: subnet_backend
+
+
+
+  # creating a key pair for passwordless remote ssh
+  - os_keypair:
+      state: present
+      name: ansible-key
+      public_key_file: /home/vagrant/.ssh/id_rsa.pub
+    register: kp
+
+
+  #  creating security group to allow access to frontend servers
+  - name: Create a new security group
+    os_security_group:
+      state: present
+      name: sec_ingr
+  #  creating security group Rule for ICMP
+  #  creating security group Rule for secure HTTP port 443
+  - name: Create a new security rule allowing secure web connection
+    os_security_group_rule:
+      security_group: sec_ingr
+      protocol: tcp
+      port_range_min: 443
+      port_range_max: 443
+      remote_ip_prefix: 0.0.0.0/0
+
+  #  create an instance (a server) connected to the pre-defined frontend network of the project.
+  - os_server:
+      state: present
+      name: bastionbal
+      image: Ubuntu-18.04-Latest
+      key_name: ansible-key
+      timeout: 200
+      flavor: t1.nano
+      security_groups: "default,sec_ingr"
+      nics:
+        - net-name: n-AGISIT-AGISIT-Teams-XXXX
+      auto_ip: no
+    register: bastionbal
+
+
+
+  #  create an instance (a web server) connected to the backend network.
+  - os_server:
+      state: present
+      name: web1
+      image: Ubuntu-18.04-Latest
+      key_name: ansible-key
+      timeout: 200
+      flavor: t1.nano
+      security_groups: "default,sec_ingr"
+      nics:
+        - net-name: n-AGISIT-AGISIT-Teams-XXXX
+        - net-name: backend_network
+      auto_ip: no
+    register: web1
+
+
+  #  create another instance (a web server) connected to the backend network.
+  - os_server:
+      state: present
+      name: web2
+      image: Ubuntu-18.04-Latest
+      key_name: ansible-key
+      timeout: 200
+      flavor: t1.nano
+      security_groups: "default,sec_ingr"
+      nics:
+        - net-name: n-AGISIT-AGISIT-Teams-XXXX
+        - net-name: backend_network
+      auto_ip: no
+    register: web2
+
+
+  #  create an instance (a db server) connected to the backend network.
+  - os_server:
+      state: present
+      name: dbase
+      image: Ubuntu-18.04-Latest
+      key_name: ansible-key
+      timeout: 200
+      flavor: t1.nano
+      security_groups: "default,sec_ingr"
+      nics:
+        - net-name: backend_network
+      auto_ip: no
+    register: dbase
+
+
+
+  #  Add bastionbal Ubuntu Instance to Inventory
+  - add_host:
+      name: "{{ bastionbal.server.private_v4 }}"
+      groups: frontservers
+      instance_name: bastionbalance
+      ansible_host: "{{ bastionbal.server.private_v4 }}"
+      ansible_user: ubuntu
+      ansible_become: true
+
+  - add_host:
+      name: "{{ bastionbal.server.public_v4 }}"
+      groups: frontservers
+      instance_name: bastionbalance
+      ansible_host: "{{ bastionbal.server.public_v4 }}"
+      ansible_user: ubuntu
+      ansible_become: true
+
+  #  Add web1 Ubuntu Instance to Inventory
+  - add_host:
+      name: "{{ web1.server.private_v4 }}"
+      groups: web
+      instance_name: web1
+      ansible_host: "{{ web1.server.private_v4 }}"
+      ansible_user: ubuntu
+      ansible_become: true
+
+  #  Add web1 Ubuntu Instance to Inventory
+  - add_host:
+      name: "{{ web2.server.private_v4 }}"
+      groups: web
+      instance_name: web2
+      ansible_host: "{{ web2.server.private_v4 }}"
+      ansible_user: ubuntu
+      ansible_become: true
+
+  #  Add dbase Ubuntu Instance to Inventory
+  - add_host:
+      name: "{{ dbase.server.private_v4 }}"
+      groups: db
+      instance_name: dbase
+      ansible_host: "{{ dbase.server.private_v4 }}"
+      ansible_user: ubuntu
+      ansible_become: true
+
+# The following tasks will test connectivity (via ssh) to the infrastructure instances
+# These tasks will also allow to automatically populate the "known_hosts" file
+# at the Deployment VM used to remotely manage the tenant infrastructure
+
+  # Try SSH to jump server
+  - name: Wait for SSH on the Instance
+    command: >
+      ssh -oBatchMode=yes -oStrictHostKeyChecking=no
+      ubuntu@{{ bastionbal.server.public_v4 }} true
+    register: result
+    until: result is success
+    retries: 30
+    delay: 10
+
+# Try SSH to web server
+  - name: Wait for SSH on the web1 Instance
+    command: >
+      ssh -oBatchMode=yes -oStrictHostKeyChecking=no
+      ubuntu@{{ web1.server.public_v4 }} true
+    register: result
+    until: result is success
+    retries: 30
+    delay: 10
+
+
+# Try SSH to web server
+  - name: Wait for SSH on the web2 Instance
+    command: >
+      ssh -oBatchMode=yes -oStrictHostKeyChecking=no
+      ubuntu@{{ web2.server.public_v4 }} true
+    register: result
+    until: result is success
+    retries: 30
+    delay: 10

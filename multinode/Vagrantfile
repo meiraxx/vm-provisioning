@@ -1,0 +1,57 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+# web servers
+(1..3).each do |i|
+    Vagrant.configure("2") do |config|
+    config.ssh.insert_key = false
+    config.vbguest.auto_update = false
+    config.vm.define "webserver#{i}" do |web_config|
+      web_config.vm.box = "ubuntu/trusty64"
+      web_config.vm.hostname = "webserver#{i}"
+      web_config.vm.network "private_network", ip: "192.168.56.2#{i}"
+      web_config.vm.network "forwarded_port", guest: "80", host: "808#{i}"
+      web_config.vm.provider "virtualbox" do |vb|
+        vb.name = "webserver#{i}"
+        opts = ["modifyvm", :id, "--natdnshostresolver1", "on"]
+        vb.customize opts
+        vb.memory = "256"
+      end # of vb
+      web_config.vm.provision "shell", path: "bootstrap_web.sh"
+    end # of web_config
+  end # of config
+end
+
+# client
+Vagrant.configure("2") do |config|
+  config.ssh.insert_key = false
+  config.vbguest.auto_update = false
+  config.vm.define "client" do |web_config|
+    web_config.vm.box = "ubuntu/trusty64"
+    web_config.vm.hostname = "client"
+    web_config.vm.network "private_network", ip: "192.168.56.11"
+    web_config.vm.provider "virtualbox" do |vb|
+      vb.name = "client"
+      opts = ["modifyvm", :id, "--natdnshostresolver1", "on"]
+      vb.customize opts
+      vb.memory = "256"
+    end # of vb
+  end # of web_config
+end # of config
+
+# database
+Vagrant.configure("2") do |config|
+  config.ssh.insert_key = false
+  config.vbguest.auto_update = false
+  config.vm.define "database" do |web_config|
+    web_config.vm.box = "ubuntu/trusty64"
+    web_config.vm.hostname = "database"
+    web_config.vm.network "private_network", ip: "192.168.56.12"
+    web_config.vm.provider "virtualbox" do |vb|
+      vb.name = "database"
+      opts = ["modifyvm", :id, "--natdnshostresolver1", "on"]
+      vb.customize opts
+      vb.memory = "256"
+    end # of vb
+  end # of web_config
+end # of config

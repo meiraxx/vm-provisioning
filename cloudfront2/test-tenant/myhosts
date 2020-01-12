@@ -1,0 +1,30 @@
+# file: myhosts
+# for tenant hosts file
+
+# Modify the line with the ansible_host for the public IP address of your Tenant
+# For that, un-comment the following line before running instances configuration
+bastionbal  ansible_host=100.64.11.214 ansible_user=ubuntu ansible_connection=ssh
+web1        ansible_host=100.64.11.216 ansible_user=ubuntu ansible_connection=ssh
+web2        ansible_host=100.64.11.215 ansible_user=ubuntu ansible_connection=ssh
+
+
+# The local deployment host VM
+[osmgmt]
+localhost           ansible_connection=local
+
+# Contains the web servers at backend network
+[web]
+web1
+web2
+
+[loadbal]
+bastionbal
+
+[targets]
+bastionbal
+web1
+web2
+
+# Defines the command to append for tunnelling through the bastion host
+#[gatewayed:vars]
+#ansible_ssh_common_args=' -o ProxyCommand="ssh -W %h:%p -q ubuntu@bastionbal"'
